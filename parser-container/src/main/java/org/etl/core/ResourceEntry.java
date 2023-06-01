@@ -1,4 +1,4 @@
-package org.etl.classloader;
+package org.etl.core;
 
 public class ResourceEntry {
 

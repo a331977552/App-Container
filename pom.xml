@@ -3,18 +3,19 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <packaging>pom</packaging>
+
     <modules>
-        <module>parsers</module>
+        <module>parser-service</module>
         <module>parser-container</module>
         <module>parser-api</module>
     </modules>
     <groupId>org.etl</groupId>
-    <artifactId>server</artifactId>
+    <artifactId>parser-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Parser</name>
-    <description>server</description>
+    <name>parser-parent</name>
+    <description>parser-parent</description>
     <properties>
-        <java.version>17</java.version>
+        <java.version>18</java.version>
     </properties>
 
 
