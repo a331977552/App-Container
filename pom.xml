@@ -5,9 +5,10 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>parser-service</module>
+        <module>parser-app</module>
         <module>parser-container</module>
-        <module>parser-api</module>
+        <module>parser-service</module>
+
     </modules>
     <groupId>org.etl</groupId>
     <artifactId>parser-parent</artifactId>
