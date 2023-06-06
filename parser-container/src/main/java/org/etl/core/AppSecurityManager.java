@@ -2,7 +2,7 @@ package org.etl.core;
 
 import java.security.Permission;
 
-public class MySecurityManager extends SecurityManager {
+public class AppSecurityManager extends SecurityManager {
 
     @Override
     public void checkExit(int status) {
@@ -21,7 +21,7 @@ public class MySecurityManager extends SecurityManager {
     private static class ExitTrappedException extends SecurityException { }
 
     public static void forbidSystemExitCall() {
-       System.setSecurityManager(new MySecurityManager());
+       System.setSecurityManager(new AppSecurityManager());
     }
 
     public static void enableSystemExitCall() {

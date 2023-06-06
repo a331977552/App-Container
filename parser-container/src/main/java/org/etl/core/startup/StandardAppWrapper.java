@@ -1,9 +1,7 @@
 package org.etl.core.startup;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
 import org.etl.core.AppWrapper;
-import org.etl.core.FileMonitorService;
 import org.etl.core.loader.AppClassLoader;
 import org.etl.core.loader.Loader;
 import org.etl.service.ReferenceServiceImpl;
@@ -15,8 +13,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
-
-import static org.etl.core.startup.BootStrap.APP_HOME;
 
 @Slf4j
 public class StandardAppWrapper implements AppWrapper {
@@ -33,12 +29,12 @@ public class StandardAppWrapper implements AppWrapper {
     SynchronousQueue<File> appFile = new SynchronousQueue<>(true);
     private JarDeployer jarDeployer;
     private boolean started;
-    private AppClassLoader parserServiceClassLoader;
+    private AppClassLoader appClassLoader;
 
     private Class<?> appClass;
     private boolean reloadable = false;
 
-    public void setName(String name){
+    public void setName(String name) {
         this.name = name;
     }
 
@@ -51,12 +47,13 @@ public class StandardAppWrapper implements AppWrapper {
     public boolean getReloadable() {
         return reloadable;
     }
-    public void setReloadable(boolean reloadable){
+
+    public void setReloadable(boolean reloadable) {
         this.reloadable = reloadable;
     }
 
     @Override
-    public void reload()  {
+    public void reload() {
         setPause(true);
 
         stop();
@@ -74,26 +71,25 @@ public class StandardAppWrapper implements AppWrapper {
     public void start() throws Exception {
         //todo start client
         this.started = true;
-            try {
-                //todo get file by name();
-                //1.check if there is jar exist in the folder, if it exists, explodes it
-                //2.start the folder
-                File file = appFile.poll(100, TimeUnit.MILLISECONDS);
-                if (file == null)
-                    return;
-                if (file.isDirectory()) {
-                    log.info("new app Directory found:{} trying to start", file.getName());
-                    internalStart(file.getParentFile().getAbsolutePath(), file.getName());
-                } else if (file.getName().endsWith(".jar")) {
-                    log.info("new app jar found:{} trying to deploy and start", file.getName());
-                    deployAndStart(file);
-                } else {
-                    log.warn("unrecognized file :{}", file);
-                }
-            } catch (InterruptedException ignored) {
+        try {
+            //todo get file by name();
+            //1.check if there is jar exist in the folder, if it exists, explodes it
+            //2.start the folder
+            File file = appFile.poll(100, TimeUnit.MILLISECONDS);
+            if (file == null)
+                return;
+            if (file.isDirectory()) {
+                log.info("new app Directory found:{} trying to start", file.getName());
+                internalStart(file.getParentFile().getAbsolutePath(), file.getName());
+            } else if (file.getName().endsWith(".jar")) {
+                log.info("new app jar found:{} trying to deploy and start", file.getName());
+                deployAndStart(file);
+            } else {
+                log.warn("unrecognized file :{}", file);
             }
-
-            backgroundProcess();
+        } catch (InterruptedException ignored) {
+        }
+        backgroundProcess();
     }
 
     private void backgroundProcess() {
@@ -107,6 +103,10 @@ public class StandardAppWrapper implements AppWrapper {
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    protected void stopBackgroundProcess() {
+        this.getLoader().stopBackgroundProcess();
     }
 
     private void setPause(boolean pause) {
@@ -125,11 +125,7 @@ public class StandardAppWrapper implements AppWrapper {
     }
 
 
-
-
-
-
-    public void setJarDeployer(JarDeployer jarDeployer){
+    public void setJarDeployer(JarDeployer jarDeployer) {
         this.jarDeployer = jarDeployer;
     }
 
@@ -139,9 +135,9 @@ public class StandardAppWrapper implements AppWrapper {
     }
 
     private void deployAndStart(File jar) throws IOException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, IllegalAccessException {
-        if (parserServiceClassLoader!=null){
+        if (appClassLoader != null) {
             //call close to make sure all the previously loaded class files and jar files can be removed.
-            parserServiceClassLoader.close();
+            appClassLoader.close();
         }
         jarDeployer.deleteAppFolder(this.name());
         jarDeployer.deploy(this.name(), jar);
@@ -150,10 +146,10 @@ public class StandardAppWrapper implements AppWrapper {
     }
 
     private void internalStart(String rootPath, String appName) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        parserServiceClassLoader = new AppClassLoader(rootPath, appName);
+        appClassLoader = new AppClassLoader(rootPath, appName);
 
         //todo main class configurable like reading from manifest
-        Class<?> appMain = parserServiceClassLoader.loadClass("org.etl.app.App");
+        Class<?> appMain = appClassLoader.loadClass("org.etl.app.App");
 
 
         new Thread(() -> {
@@ -168,10 +164,11 @@ public class StandardAppWrapper implements AppWrapper {
                 ReferenceServiceReceiver referenceServiceReceiver = subclass.getConstructor().newInstance();
                 ReferenceServiceImpl referenceService = new ReferenceServiceImpl();
                 referenceServiceReceiver.onReferenceServiceArrived(referenceService);
-                main.invoke(null,(Object) args);
+                main.invoke(null, (Object) args);
 
-            } catch (InstantiationException |NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                log.error("app "+appName+" has run into exception, please check !!",e);
+            } catch (InstantiationException | NoSuchMethodException | IllegalAccessException |
+                     InvocationTargetException e) {
+                log.error("app " + appName + " has run into exception, please check !!", e);
             }
         }).start();
     }
@@ -187,21 +184,21 @@ public class StandardAppWrapper implements AppWrapper {
     }
 
 
-
     /**
      * it will block until the service is finished
-     *
      */
     protected void stopInternal(boolean forceStop) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
-
+        this.stopBackgroundProcess();
         if (appClass != null) {
-            Method stop = appClass.getMethod("stop",boolean.class);
+            Method stop = appClass.getMethod("stop", boolean.class);
             Object invoke = stop.invoke(null, forceStop);
-            log.info("process {} has been stopped",appClass.getName());
+            log.info("process {} has been stopped", appClass.getName());
         } else {
             log.warn("unable to find app with name :{} in app container", this.name());
         }
+
     }
+
 
 
 }

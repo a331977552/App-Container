@@ -31,9 +31,9 @@ import org.etl.core.AppWrapper;
  *
  */
 public interface Loader {
-    void setContext(AppWrapper context);
+    void setAppWrapper(AppWrapper appWrapper);
 
-    AppWrapper getContext();
+    AppWrapper getAppWrapper();
 
     /**
      * Execute a periodic task, such as reloading, etc. This method will be
@@ -47,12 +47,8 @@ public interface Loader {
      */
     ClassLoader getClassLoader();
 
-    /**
-     * Has the internal repository associated with this Loader been modified,
-     * such that the loaded classes should be reloaded?
-     *
-     * @return <code>true</code> when the repository has been modified,
-     *         <code>false</code> otherwise
-     */
+
+    void stopBackgroundProcess();
+
     boolean modified();
 }

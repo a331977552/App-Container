@@ -14,13 +14,11 @@ import java.util.jar.JarFile;
 @Component
 public class JarDeployer {
     private final String rootPath = BootStrap.APP_HOME;
-
-
     public JarDeployer() {
     }
 
     public File deploy(String serviceName, File jar) {
-        log.info("deploy parser jar :{} with name: {}", jar.getAbsolutePath(), serviceName);
+        log.info("deploy app jar :{} with name: {}", jar.getAbsolutePath(), serviceName);
         deleteExistingService(rootPath + File.separator + serviceName);
         return unzip(jar.getAbsolutePath(), rootPath + File.separator + serviceName);
     }
