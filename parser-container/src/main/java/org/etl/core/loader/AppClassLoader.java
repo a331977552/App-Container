@@ -28,8 +28,8 @@ public class AppClassLoader extends URLClassLoader {
     //todo keep resources myself, define classes myself
     //
 
-    public AppClassLoader(String rootPath,String appName) {
-        this(rootPath,appName,ClassLoader.getPlatformClassLoader());
+    public AppClassLoader(String appMountPath,String appName) {
+        this(appMountPath,appName,ClassLoader.getPlatformClassLoader());
     }
 
     public AppClassLoader(String rootPath,String appName,ClassLoader parent)  {
@@ -78,22 +78,4 @@ public class AppClassLoader extends URLClassLoader {
        return super.loadClass(name, resolve);
     }
 
-    private String binaryNameToPath(String binaryName, boolean withLeadingSlash) {
-        // 1 for leading '/', 6 for ".class"
-        StringBuilder path = new StringBuilder(7 + binaryName.length());
-        if (withLeadingSlash) {
-            path.append('/');
-        }
-        path.append(binaryName.replace('.', '/'));
-        path.append(CLASS_FILE_SUFFIX);
-        return path.toString();
-    }
-
-    /**
-     * todo
-     * @return
-     */
-    public boolean modified(){
-        return false;
-    }
 }

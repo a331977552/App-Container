@@ -1,5 +1,7 @@
 package org.etl.core;
 
+import jakarta.annotation.Nullable;
+
 public interface Server {
 
     /**
@@ -12,10 +14,15 @@ public interface Server {
 
     void stop();
 
+    public void setAppMountPath(String appMountPath);
 
+    String getAppMountPath();
     /**
-     * it will stop this app and then remove it
+     * it will stop this app and then remove it.
      * @param name app name
      */
     AppWrapper removeApp(String name);
+
+    @Nullable
+    AppWrapper getApp(String name);
 }

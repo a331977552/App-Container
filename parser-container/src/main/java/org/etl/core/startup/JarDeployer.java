@@ -1,8 +1,7 @@
 package org.etl.core.startup;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
-import org.etl.core.startup.BootStrap;
+import org.etl.core.BootStrap;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
@@ -15,29 +14,32 @@ import java.util.jar.JarFile;
 public class JarDeployer {
     private final String rootPath = BootStrap.APP_HOME;
 
+    private static final JarDeployer JAR_DEPLOYER =new JarDeployer();
 
-    public JarDeployer() {
+    public static JarDeployer getInstance(){
+        return JAR_DEPLOYER;
     }
 
-    public File deploy(String serviceName, File jar) {
-        log.info("deploy parser jar :{} with name: {}", jar.getAbsolutePath(), serviceName);
-        deleteExistingService(rootPath + File.separator + serviceName);
-        return unzip(jar.getAbsolutePath(), rootPath + File.separator + serviceName);
+
+    private JarDeployer() {
     }
 
-    public void deleteAppFolder(String serviceName) throws IOException {
-        FileUtils.deleteDirectory(new File(rootPath,serviceName));
-    }
 
-    private void deleteExistingService(String path) {
+
+
+
+    public void deleteExistingExplodedApp(String path) {
         File file = new File(path);
         if (file.exists() && file.isDirectory()) {
             if (file.delete()) {
-                log.warn("unable to delete parser service {} ", path);
+                log.info("app  {} deleted", path);
             } else {
-                log.info("parser service: {} deleted", path);
+                log.warn("unable to delete app {} ", path);
             }
         }
+    }
+    public File unzip(File jarPath, String destStr) {
+        return this.unzip(jarPath.getAbsolutePath(),destStr);
     }
 
     public File unzip(String jarPath, String destStr) {

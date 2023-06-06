@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.io.DefaultResourceLoader;
+
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Map;
@@ -26,16 +27,6 @@ public class App implements ReferenceServiceReceiver {
 
     public static void main(String[] args) {
         ClassLoader loader = App.class.getClassLoader();
-//        Thread.currentThread().setContextClassLoader(loader);
-        if (loader instanceof URLClassLoader classLoader){
-            URL[] urLs = classLoader.getURLs();
-            log.info("");
-            log.info("classpath in client*****:");
-            for (URL urL : urLs) {
-                System.out.println(urL.toString());
-            }
-            log.info("classpath in client end ");
-        }
         ConfigurableApplicationContext run = new SpringApplicationBuilder(new DefaultResourceLoader(loader), App.class)
                 .web(WebApplicationType.NONE)
                 .main(App.class)
@@ -45,16 +36,18 @@ public class App implements ReferenceServiceReceiver {
         for (Map.Entry<String, Parser> stringParserEntry : beansOfType.entrySet()) {
             Parser parser = stringParserEntry.getValue();
             parser.setCache(referenceService.getCacheUtil());
-            ParserFactory.getParserMap().putParser(stringParserEntry.getValue().version(),parser);
+            ParserFactory.getParserMap().putParser(stringParserEntry.getValue().version(), parser);
         }
         String test = run.getEnvironment().getProperty("test");
-        System.out.println("property test: "+test);
+        System.out.println("property test: " + test);
+        String test2 = run.getEnvironment().getProperty("test2");
+        System.out.println("property test2: " + test2);
         myScheduler = new MyScheduler();
         myScheduler.schedule();
     }
 
 
-    public static void stop(boolean force){
+    public static void stop(boolean force) {
         try {
             myScheduler.stop();
         } catch (SchedulerException e) {

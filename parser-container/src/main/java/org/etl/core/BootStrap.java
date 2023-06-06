@@ -1,22 +1,13 @@
-package org.etl.core.startup;
+package org.etl.core;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
-import org.etl.core.AppWrapper;
-import org.etl.core.FileMonitorService;
-import org.etl.core.Repository;
-import org.etl.core.Server;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.io.DefaultResourceLoader;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.Optional;
 
 import static org.etl.core.startup.ClassLoaderFactory.validateFile;
 
@@ -28,14 +19,23 @@ import static org.etl.core.startup.ClassLoaderFactory.validateFile;
 @SpringBootApplication
 public class BootStrap {
 
-    public static final String APP_DIR_NAME = "parser_app";
+    public static final String APP_DIR_NAME = "apps";
 
     private static final String userHome = System.getProperty("user.dir");
     public static final String APP_HOME = userHome + File.separator + APP_DIR_NAME;
 
-    private static final Object lock = new Object();
     private Server server;
 
+    static {
+        try {
+            File rootPath = new File(APP_HOME).getCanonicalFile();
+            if (!validateFile(rootPath, Repository.RepositoryType.DIR)) {
+                throw new RuntimeException("unable to create parser service root path: " + rootPath.getAbsolutePath());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     /**
      * there should be three parts:
      * the container
@@ -64,22 +64,19 @@ public class BootStrap {
         }
     }
 
-    private void start() throws Exception {
+    private void start() {
         server.start();
         log.info("server started");
     }
 
-    private void init() throws IOException {
-        File rootPath = new File(APP_HOME).getCanonicalFile();
-        if (validateFile(rootPath, Repository.RepositoryType.DIR)) {
-            throw new RuntimeException("unable to create parser service root path: " + rootPath.getAbsolutePath());
-        }
-        ConfigurableApplicationContext run = new SpringApplicationBuilder(new DefaultResourceLoader(this.getClass().getClassLoader()), BootStrap.class)
+    private void init() {
+
+        ConfigurableApplicationContext run = new SpringApplicationBuilder(BootStrap.class)
                 .web(WebApplicationType.NONE)
 //                .initializers(applicationContext -> applicationContext.setClassLoader(classLoader))
                 .run();
         server = run.getBean(Server.class);
-
+        server.setAppMountPath(APP_HOME);
     }
 
 }

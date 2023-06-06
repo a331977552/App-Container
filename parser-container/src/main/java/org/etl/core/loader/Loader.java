@@ -31,21 +31,15 @@ import org.etl.core.AppWrapper;
  *
  */
 public interface Loader {
-    void setContext(AppWrapper context);
+    void setAppWrapper(AppWrapper context);
 
-    AppWrapper getContext();
-
-    /**
-     * Execute a periodic task, such as reloading, etc. This method will be
-     * invoked inside the classloading context of this container. Unexpected
-     * throwables will be caught and logged.
-     */
-    void backgroundProcess();
-
+    AppWrapper getAppWrapper();
     /**
      * @return the Java class loader to be used by this Container.
      */
     ClassLoader getClassLoader();
+
+    void close();
 
     /**
      * Has the internal repository associated with this Loader been modified,
@@ -54,5 +48,4 @@ public interface Loader {
      * @return <code>true</code> when the repository has been modified,
      *         <code>false</code> otherwise
      */
-    boolean modified();
 }

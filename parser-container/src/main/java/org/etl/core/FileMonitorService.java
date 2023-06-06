@@ -7,34 +7,42 @@ import org.apache.commons.io.monitor.FileAlterationObserver;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class FileMonitorService {
     private final File dirToMonitor;
+    private final FileFilter fileFilter;
     private FileAlterationListenerAdaptor onFileAlterationListenerAdaptor;
-    private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
+    private FileAlterationMonitor monitor;
 
-    public FileMonitorService(File dirToMonitor) {
+    private static AtomicInteger threadCount = new AtomicInteger(0);
+
+    public FileMonitorService(File dirToMonitor, FileFilter fileFilter) {
         this.dirToMonitor = dirToMonitor;
+        this.fileFilter = fileFilter;
     }
 
     public void setFileAlterationListenerAdaptor(FileAlterationListenerAdaptor onFileAlterationListenerAdaptor) {
         this.onFileAlterationListenerAdaptor = onFileAlterationListenerAdaptor;
     }
-    public void setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler uncaughtExceptionHandler){
-        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
-    }
+
     public void start() throws Exception {
-        FileAlterationObserver observer = new FileAlterationObserver(dirToMonitor.getAbsolutePath(), pathname -> pathname.getName().endsWith(".jar"));
+        FileAlterationObserver observer = new FileAlterationObserver(dirToMonitor.getAbsolutePath(), fileFilter);
         observer.addListener(onFileAlterationListenerAdaptor);
-        FileAlterationMonitor monitor = new FileAlterationMonitor(3000, observer);
-        monitor.setThreadFactory(r -> {
-            Thread thread = new Thread(r,"FileMonitor-Thread");
-            thread.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-            return thread;
-        });
+        monitor = new FileAlterationMonitor(3000, observer);
+        monitor.setThreadFactory(r -> new Thread(r, "FileMonitor-Thread-" + threadCount.getAndIncrement()));
         monitor.start();
+    }
+
+    public void stop(){
+        try {
+            monitor.stop();
+        } catch (Exception e) {
+            log.error("unable to stop file monitor!!!", e);
+        }
     }
 
 

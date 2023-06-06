@@ -4,8 +4,13 @@ import org.etl.core.loader.Loader;
 
 public interface AppWrapper {
 
-    String name();
+    String getName();
     boolean getReloadable();
+
+    public String getAbsAppPath();
+
+    public String getAppMountPath();
+
 
     void reload() ;
 
@@ -15,4 +20,6 @@ public interface AppWrapper {
 
     void start() throws Exception;
     void stop();
+
+    boolean started();
 }
