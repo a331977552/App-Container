@@ -1,6 +1,8 @@
 package org.etl.core;
 
 import org.etl.core.loader.Loader;
+import org.etl.service.Application;
+import org.etl.service.Context;
 
 public interface AppWrapper {
 
@@ -12,7 +14,11 @@ public interface AppWrapper {
     public String getAppMountPath();
 
 
-    void reload() ;
+    public Application getApplicationInstance();
+
+    public Context getContext();
+    public void setContext(Context context);
+    void reload();
 
     public void setLoader(Loader loader);
 

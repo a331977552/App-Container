@@ -1,6 +1,7 @@
 package org.etl.core.startup;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.etl.core.BootStrap;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +13,6 @@ import java.util.jar.JarFile;
 @Slf4j
 @Component
 public class JarDeployer {
-    private final String rootPath = BootStrap.APP_HOME;
 
     private static final JarDeployer JAR_DEPLOYER =new JarDeployer();
 
@@ -31,11 +31,15 @@ public class JarDeployer {
     public void deleteExistingExplodedApp(String path) {
         File file = new File(path);
         if (file.exists() && file.isDirectory()) {
-            if (file.delete()) {
-                log.info("app  {} deleted", path);
-            } else {
-                log.warn("unable to delete app {} ", path);
+            try {
+                log.info("deleting existing app folder : {}",path);
+                FileUtils.deleteDirectory(file);
+                log.info("existing app folder delete successfully, {}",path);
+            } catch (IOException e) {
+                log.error("unable to delete app {} ", path,e);
             }
+        }else{
+            log.warn("the target is not a folder or not exist: {}",path);
         }
     }
     public File unzip(File jarPath, String destStr) {

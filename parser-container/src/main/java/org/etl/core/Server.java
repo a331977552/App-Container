@@ -1,15 +1,14 @@
 package org.etl.core;
 
 import jakarta.annotation.Nullable;
+import org.etl.service.Context;
 
+/**
+ * a server represents a container, and it contains a lot of applications( extends Application)
+ * all these applications share the same context which offers specific services.
+ */
 public interface Server {
 
-    /**
-     *
-     * it will add this app to this server and  start the app
-     * @param app
-     */
-    void addApp(AppWrapper app);
     void start();
 
     void stop();
@@ -22,6 +21,9 @@ public interface Server {
      * @param name app name
      */
     AppWrapper removeApp(String name);
+
+    Context getContext();
+
 
     @Nullable
     AppWrapper getApp(String name);

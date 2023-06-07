@@ -10,7 +10,6 @@ import java.io.IOException;
 
 @Slf4j
 public class AppLoader implements Loader {
-    private static final Object lock = new Object();
 
     private AppClassLoader appClassLoader;
     private AppWrapper appWrapper;

@@ -6,17 +6,23 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.net.URL;
 
-class FileMonitorServiceTest {
+class FileMonitorApplicationTest {
 
     @Test
     void setUncaughtExceptionHandler() throws Exception {
         System.out.println(Thread.currentThread().getName());
-        URL resource = FileMonitorServiceTest.class.getClassLoader().getResource("testFolder");
+        URL resource = FileMonitorApplicationTest.class.getClassLoader().getResource("testFolder");
         assert resource != null;
         File dir = new File(resource.getFile());
-        FileMonitorService fileMonitorService = new FileMonitorService(dir);
+        FileMonitorService fileMonitorService = new FileMonitorService(dir, new FileFilter() {
+            @Override
+            public boolean accept(File pathname) {
+                return true;
+            }
+        });
 
         fileMonitorService.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor(){
             @Override

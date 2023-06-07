@@ -1,21 +1,25 @@
 package org.etl.core.startup;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
 import org.etl.core.AppWrapper;
 import org.etl.core.FileMonitorService;
 import org.etl.core.loader.AppClassLoader;
 import org.etl.core.loader.AppLoader;
 import org.etl.core.loader.Loader;
-import org.etl.service.ReferenceServiceImpl;
-import org.etl.service.ReferenceServiceReceiver;
+import org.etl.service.Application;
+import org.etl.service.Context;
+import org.etl.service.ContextFacade;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Properties;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class StandardAppWrapper implements AppWrapper {
@@ -32,12 +36,14 @@ public class StandardAppWrapper implements AppWrapper {
     SynchronousQueue<File> appFile = new SynchronousQueue<>(true);
     private boolean started;
 
-    private Class<?> appClass;
+    private Class<? extends Application> appClass;
     private boolean reloadable = false;
     private String absAppPath;
 
 
     private String appMountPath;
+    private Application application;
+    private Context context;
 
     public StandardAppWrapper(String absAppPath) {
         this.absAppPath = absAppPath;
@@ -67,6 +73,25 @@ public class StandardAppWrapper implements AppWrapper {
         return this.appMountPath;
     }
 
+    protected void setApplication(Application application) {
+        this.application = application;
+    }
+
+    @Override
+    public Application getApplicationInstance() {
+        return application;
+    }
+
+    @Override
+    public Context getContext() {
+        return this.context;
+    }
+
+    @Override
+    public void setContext(Context context) {
+        this.context = context;
+    }
+
     public void setAppMountPath(String appMountPath) {
         this.appMountPath = appMountPath;
     }
@@ -79,21 +104,16 @@ public class StandardAppWrapper implements AppWrapper {
     public void reload() {
         setPause(true);
         stop();
-        this.getLoader().close();
         AppLoader appLoader = new AppLoader();
         appLoader.setAppWrapper(this);
-        appLoader.setAppClassLoader(new AppClassLoader(this.getAppMountPath(),getName()));
+        appLoader.setAppClassLoader(new AppClassLoader(this.getAppMountPath(), getName()));
         setLoader(appLoader);
-        try {
-            start();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        start();
         setPause(false);
     }
 
     @Override
-    public void start() throws Exception {
+    public void start() {
         internalStart();
         backgroundProcess();
         this.started = true;
@@ -119,14 +139,14 @@ public class StandardAppWrapper implements AppWrapper {
                     @Override
                     public void onFileChange(File file) {
                         log.info("file {} modified, restarting app {}", file.getAbsolutePath(), getName());
-                            Thread currentThread = Thread.currentThread();
-                            ClassLoader originalTccl = currentThread.getContextClassLoader();
-                            try {
-                                currentThread.setContextClassLoader(AppLoader.class.getClassLoader());
-                                reload();
-                            } finally {
-                                currentThread.setContextClassLoader(originalTccl);
-                            }
+                        Thread currentThread = Thread.currentThread();
+                        ClassLoader originalTccl = currentThread.getContextClassLoader();
+                        try {
+                            currentThread.setContextClassLoader(AppLoader.class.getClassLoader());
+                            reload();
+                        } finally {
+                            currentThread.setContextClassLoader(originalTccl);
+                        }
                     }
                 });
             }
@@ -139,6 +159,10 @@ public class StandardAppWrapper implements AppWrapper {
 
     }
 
+    /**
+     * stop all background process,
+     * and close all resources.
+     */
     @Override
     public void stop() {
         try {
@@ -150,7 +174,7 @@ public class StandardAppWrapper implements AppWrapper {
     }
 
     private void stopBackgroundProcess() {
-        if (fileMonitorService!=null){
+        if (fileMonitorService != null) {
             fileMonitorService.stop();
         }
     }
@@ -175,19 +199,29 @@ public class StandardAppWrapper implements AppWrapper {
         return loader;
     }
 
-    private void internalStart() throws ClassNotFoundException {
-        //todo main class configurable like reading from manifest
-        ClassLoader parserServiceClassLoader = getLoader().getClassLoader();
-        appClass = parserServiceClassLoader.loadClass("org.etl.app.App");
+    private void internalStart() {
+
         new Thread(() -> {
             try {
-                Class<? extends ReferenceServiceReceiver> subclass = appClass.asSubclass(ReferenceServiceReceiver.class);
-                Method main = appClass.getMethod("main", String[].class);
-                ReferenceServiceReceiver referenceServiceReceiver = subclass.getConstructor().newInstance();
-                ReferenceServiceImpl referenceService = new ReferenceServiceImpl();
-                referenceServiceReceiver.onReferenceServiceArrived(referenceService);
-                main.invoke(null, (Object) new String[]{});
-            } catch (InstantiationException | NoSuchMethodException | IllegalAccessException |
+                ClassLoader parserServiceClassLoader = getLoader().getClassLoader();
+                //todo make the config.property location configurable
+                URL resource = getLoader().getClassLoader().getResource("app/config.properties");
+                Properties properties;
+                try {
+                    File path = Paths.get(resource.toURI()).toFile();
+                    properties = new Properties();
+                    properties.load(new FileInputStream(path));
+                } catch (URISyntaxException | IOException|NullPointerException e) {
+                    log.error("unable to grable config.properties, please check if you config your app correctly",e);
+                    return;
+                }
+                String mainClass = (String) properties.get("main.class");
+                log.info("retrieved main class {}, starting",mainClass);
+                appClass = parserServiceClassLoader.loadClass(mainClass).asSubclass(Application.class);
+                Application application = appClass.getConstructor().newInstance();
+                setApplication(application);
+                application.start(new ContextFacade(context));
+            } catch (ClassNotFoundException | InstantiationException | NoSuchMethodException | IllegalAccessException |
                      InvocationTargetException e) {
                 log.error("app " + getName() + " has run into exception, please check !!", e);
                 StandardAppWrapper.this.stop();
@@ -201,10 +235,11 @@ public class StandardAppWrapper implements AppWrapper {
      */
     protected void stopInternal(boolean forceStop) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
 
-        if (appClass != null) {
-            Method stop = appClass.getMethod("stop", boolean.class);
-            Object invoke = stop.invoke(null, forceStop);
-            log.info("process {} has been stopped", appClass.getName());
+        if (getApplicationInstance() != null) {
+            log.info("try to stop app: {}", appClass.getName());
+            getApplicationInstance().stop(forceStop);
+            getLoader().close();
+            log.info("app {} has been stopped", appClass.getName());
         } else {
             log.warn("unable to find app with name :{} in app container", this.getName());
         }

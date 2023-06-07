@@ -7,6 +7,9 @@ import org.etl.core.loader.AppClassLoader;
 import org.etl.core.loader.AppLoader;
 import org.etl.core.startup.JarDeployer;
 import org.etl.core.startup.StandardAppWrapper;
+import org.etl.service.Context;
+import org.etl.service.StandardContext;
+import org.etl.service.service.CacheUtil;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -21,9 +24,9 @@ public class StandardServer implements Server {
     private final Map<String, AppWrapper> apps =new ConcurrentHashMap<>();
     private String appMountPath;
     private FileMonitorService fileMonitorService;
+    private Context context;
 
-    @Override
-    public void addApp(AppWrapper app) {
+    protected void addApp(AppWrapper app) {
         try {
             app.start();
         } catch (Exception e) {
@@ -34,19 +37,17 @@ public class StandardServer implements Server {
 
     @Override
     public void start() {
-        //todo
-        for (Map.Entry<String, AppWrapper> appWrapperEntry : apps.entrySet()) {
-            AppWrapper value = appWrapperEntry.getValue();
-            if (!value.started()){
-                try {
-                    value.start();
-                } catch (Exception e) {
-                    log.error("failed to start app : {}",appWrapperEntry.getValue().getName(),e);
-                }
-            }
-        }
+        //block util context is generated.
+        prepareContext();
         this.backgroundProcess();
+    }
 
+    private void prepareContext() {
+        //todo prepare
+        StandardContext context = new StandardContext();
+        context.setArgs(new String[]{"TEST"});
+        context.setCacheUtil(new CacheUtil());
+        this.context = context;
     }
 
     @Override
@@ -129,13 +130,11 @@ public class StandardServer implements Server {
         StandardAppWrapper standardAppWrapper = new StandardAppWrapper(appPath);
         standardAppWrapper.setAppMountPath(getAppMountPath());
         standardAppWrapper.setName(name);
-
         AppLoader appLoader = new AppLoader();
         appLoader.setAppWrapper(standardAppWrapper);
         appLoader.setAppClassLoader(new AppClassLoader(getAppMountPath(),name));
-
         standardAppWrapper.setLoader(appLoader);
-
+        standardAppWrapper.setContext(getContext());
         standardAppWrapper.setReloadable(true);
         StandardServer.this.addApp(standardAppWrapper);
     }
@@ -149,6 +148,11 @@ public class StandardServer implements Server {
             log.warn("app {} doesn't exist",appName);
         }
         return remove;
+    }
+
+    @Override
+    public Context getContext() {
+        return this.context;
     }
 
     @Nullable

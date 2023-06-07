@@ -61,6 +61,13 @@ public class BootStrap {
             bootStrap.start();
         } catch (Exception e) {
             log.error("unexpected error encountered, system exiting", e);
+            bootStrap.stop();
+        }
+    }
+
+    private void stop() {
+        if (server!=null){
+            server.stop();
         }
     }
 
@@ -70,10 +77,8 @@ public class BootStrap {
     }
 
     private void init() {
-
         ConfigurableApplicationContext run = new SpringApplicationBuilder(BootStrap.class)
                 .web(WebApplicationType.NONE)
-//                .initializers(applicationContext -> applicationContext.setClassLoader(classLoader))
                 .run();
         server = run.getBean(Server.class);
         server.setAppMountPath(APP_HOME);
