@@ -1,5 +1,5 @@
-<h1>TODO</h1>
+# TODO
 
-1.  make the app jar pickup location configurable
-2.  make the app mount path configurable
-3.  check folder when server gets started
+- make the app jar pickup location configurable
+- make the app mount path configurable
+- check folder when server gets started

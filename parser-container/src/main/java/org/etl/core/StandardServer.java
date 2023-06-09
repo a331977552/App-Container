@@ -13,19 +13,24 @@ import org.etl.service.service.CacheUtil;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
+
+import static org.etl.core.Constants.APP_CONFIG_FILE_NAME;
 
 @Slf4j
 @Component
-public class StandardServer implements Server {
+public class StandardServer implements Server, BiConsumer<String, File> {
+
 
     private final Map<String, AppWrapper> apps =new ConcurrentHashMap<>();
     private String appMountPath;
-    private FileMonitorService fileMonitorService;
     private Context context;
 
+    private final AppDropMonitor appDropMonitor = new AppDropMonitor();
+
+    private boolean started = false;
     protected void addApp(AppWrapper app) {
         try {
             app.start();
@@ -39,7 +44,11 @@ public class StandardServer implements Server {
     public void start() {
         //block util context is generated.
         prepareContext();
+        appDropMonitor.setOnAppDropped(this);
+        appDropMonitor.setAppMountPath(getAppMountPath());
         this.backgroundProcess();
+        started = true;
+
     }
 
     private void prepareContext() {
@@ -53,7 +62,7 @@ public class StandardServer implements Server {
     @Override
     public void stop() {
         //todo
-        fileMonitorService.stop();
+        stopBackgroundProcess();
         for (Map.Entry<String, AppWrapper> appWrapperEntry : apps.entrySet()) {
             AppWrapper value = appWrapperEntry.getValue();
             if (value.started()){
@@ -64,6 +73,11 @@ public class StandardServer implements Server {
                 }
             }
         }
+        started = false;
+    }
+
+    private void stopBackgroundProcess() {
+        appDropMonitor.stopBackgroundProcess();
     }
 
     @Override
@@ -78,55 +92,34 @@ public class StandardServer implements Server {
 
     protected void backgroundProcess(){
         //todo periodically check if a new folder or jar file dropped, and deploy it
-        File rootPath = new File(getAppMountPath());
-        new Thread(() -> {
-            String[] jarList = rootPath.list((dir, name) -> name.endsWith(".jar"));
-            if (jarList == null)
-            {
-                log.error("app mount directory {} is invalid, please check",rootPath.getAbsolutePath());
-                return ;
-            }
-            for (String jar : jarList) {
-                File jarFile = new File(rootPath,jar);
-                deployNewApp(jarFile);
-            }
-        }).start();
-        fileMonitorService = new FileMonitorService(rootPath, pathname -> pathname.getName().endsWith(".jar"));
-        fileMonitorService.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor(){
-            @Override
-            public void onFileCreate(File file) {
-                deployNewApp(file);
-            }
+        appDropMonitor.startBackgroundProcess();
 
-            @Override
-            public void onFileChange(File file) {
-                log.info("todo, onFileChange");
-            }
-
-            @Override
-            public void onFileDelete(File file) {
-                log.info("todo, onfile onFileDelete");
-
-            }
-        });
-        try {
-            fileMonitorService.start();
-        } catch (Exception e) {
-            log.error("failed to start app root path monitor",e);
-        }
     }
 
-    private void deployNewApp(File zippedJar) {
-        String name = getAppName(zippedJar);
+
+    private void deployNewApp(String name,File file) {
         AppWrapper app = getApp(name);
         if (app!=null){
             removeApp(name);
         }
         String appPath = getAppMountPath() + File.separator + name;
-        JarDeployer instance = JarDeployer.getInstance();
-        instance.deleteExistingExplodedApp(appPath);
-        instance.unzip(zippedJar,appPath);
-        instance.deleteJar(zippedJar);
+        if (file.getName().endsWith(".jar")){
+            JarDeployer instance = JarDeployer.getInstance();
+            instance.deleteExistingExplodedApp(appPath);
+            instance.unzip(file,appPath);
+            instance.deleteJar(file);
+        }else if(!file.isDirectory()){//might be an already exploded app
+            log.warn("unrecognized app type {}",file.getAbsolutePath());
+            return ;
+        }
+        File appDirFile = new File(appPath);
+//        G:\java_workspace\parser-parent\apps\parser-app-3.1
+//        G:\java_workspace\parser-parent\apps\parser-app-3.1.0
+        if (!validateAppDir(appDirFile))
+        {
+            return;
+        }
+
         StandardAppWrapper standardAppWrapper = new StandardAppWrapper(appPath);
         standardAppWrapper.setAppMountPath(getAppMountPath());
         standardAppWrapper.setName(name);
@@ -161,13 +154,49 @@ public class StandardServer implements Server {
         return apps.get(name);
     }
 
-    private static String getAppName(File jar) {
-        if (jar.getName().endsWith(".jar")) {
-            String serviceName;
-            serviceName = jar.getName();
-            serviceName = serviceName.substring(0, serviceName.lastIndexOf("."));
-            return serviceName;
+
+
+    public final boolean validateAppDir(File appDir){
+        File[] files = appDir.listFiles();
+        if (files==null){
+            log.error("invalid app directory structure {},there are no files",appDir.getAbsolutePath());
+            return false;
         }
-        return jar.getName();
+        File appBootInfo = new File(appDir, "BOOT-INF");
+        Set<File> set = new HashSet<>(Arrays.asList(files));
+
+        if (!set.contains(appBootInfo))
+        {
+            log.error("invalid app directory structure {},unable to find dir: {}",appDir.getAbsolutePath(),appBootInfo);
+            return false;
+        }
+
+        File classes = new File(appBootInfo, "classes");
+        File[] classesDir = classes.listFiles();
+        if (classesDir==null){
+            log.error("invalid app directory structure {},there are no files under classes folder",appDir.getAbsolutePath());
+            return false;
+        }
+
+        File appConfigFile = new File(classes, APP_CONFIG_FILE_NAME);
+
+        File lib = new File(appBootInfo, "lib");
+
+        if (!appConfigFile.exists()){
+            log.error("config file doesn't exist: {}",appDir.getAbsolutePath());
+            return false;
+        }
+        if (!lib.exists() || !lib.isDirectory()){
+            log.error("lib folder doesn't exist: {}",appDir.getAbsolutePath());
+            return false;
+        }
+
+        return true;
+    }
+
+
+    @Override
+    public void accept(String appName, File file) {
+        this.deployNewApp(appName,file);
     }
 }

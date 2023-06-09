@@ -38,6 +38,7 @@ public class AppLoader implements Loader {
     public void close() {
         try {
             this.appClassLoader.close();
+            log.info("class loader {} has been closed. resource is ready to be released",this.appClassLoader);
         } catch (IOException e) {
             log.error("app class loader encounterred exception while closing",e);
         }
