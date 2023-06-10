@@ -11,6 +11,9 @@ public interface LifeCycle {
     void stop() throws LifecycleException;
 
     void destroy() throws LifecycleException;
+    boolean isAvailable();
+
+    LifeCycleState getState();
 
     enum LifeCycleState {
         NEW(false),

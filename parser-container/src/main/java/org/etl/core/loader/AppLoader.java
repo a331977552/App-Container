@@ -1,11 +1,8 @@
 package org.etl.core.loader;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
 import org.etl.core.AppWrapper;
-import org.etl.core.FileMonitorService;
 
-import java.io.File;
 import java.io.IOException;
 
 @Slf4j

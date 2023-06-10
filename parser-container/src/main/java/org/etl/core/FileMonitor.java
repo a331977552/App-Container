@@ -4,23 +4,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
 import org.apache.commons.io.monitor.FileAlterationMonitor;
 import org.apache.commons.io.monitor.FileAlterationObserver;
-import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-public class FileMonitorService {
+public final class FileMonitor {
     private final File dirToMonitor;
     private final FileFilter fileFilter;
     private FileAlterationListenerAdaptor onFileAlterationListenerAdaptor;
     private FileAlterationMonitor monitor;
 
-    private static AtomicInteger threadCount = new AtomicInteger(0);
+    private static final AtomicInteger threadCount = new AtomicInteger(0);
 
-    public FileMonitorService(File dirToMonitor, FileFilter fileFilter) {
+    public FileMonitor(File dirToMonitor, FileFilter fileFilter) {
         this.dirToMonitor = dirToMonitor;
         this.fileFilter = fileFilter;
     }

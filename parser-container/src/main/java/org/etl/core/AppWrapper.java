@@ -4,7 +4,7 @@ import org.etl.core.loader.Loader;
 import org.etl.service.Application;
 import org.etl.service.Context;
 
-public interface AppWrapper {
+public interface AppWrapper extends LifeCycle {
 
     String getName();
     boolean getReloadable();
@@ -12,7 +12,6 @@ public interface AppWrapper {
     public String getAbsAppPath();
 
     public String getAppMountPath();
-
 
     public Application getApplicationInstance();
 
@@ -23,9 +22,4 @@ public interface AppWrapper {
     public void setLoader(Loader loader);
 
     public Loader getLoader();
-
-    void start() throws Exception;
-    void stop();
-
-    boolean started();
 }

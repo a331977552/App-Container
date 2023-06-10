@@ -11,35 +11,39 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 @Slf4j
-public final class AppDropMonitor {
+final class AppDropMonitor {
 
     private final Map<String, BlockingQueue<File>> appQueue = new ConcurrentHashMap<>();
-    private FileMonitorService fileMonitorService;
+    private FileMonitor fileMonitor;
 
-    private boolean started = false;
     private BiConsumer<String, File> appConsumer;
-    private String appMountPath;
+    private final String appMountPath;
     private Thread appDropNotifierThread;
+    private Server server;
 
+    public AppDropMonitor(String appMountPath) {
+        this.appMountPath = appMountPath;
+    }
+
+    public void setServer(Server server){
+        this.server = server;
+    }
+    public Server getServer(){
+        return server;
+    }
     public String getAppMountPath() {
         return appMountPath;
     }
 
 
-    public void setAppMountPath(String appMountPath) {
-        this.appMountPath = appMountPath;
-    }
-
     public void startBackgroundProcess() {
-        started = true;
         File rootPath = new File(getAppMountPath());
         List<File> existingApp = findExistingApp(rootPath);
         for (File file : existingApp) {
             addToQueueForDeployment(getAppName(file), file);
         }
         appDropNotifierThread = new Thread(() -> {
-            out:
-            while (started) {
+            while (server.isAvailable()) {
                 //check all
                 for (BlockingQueue<File> next : appQueue.values()) {
                     File poll = next.poll();
@@ -52,7 +56,7 @@ public final class AppDropMonitor {
                         if (!Thread.interrupted()) {
                             appConsumer.accept(getAppName(poll), poll);
                         } else {
-                            break out;
+                            return ;
                         }
                     }
                 }
@@ -68,8 +72,8 @@ public final class AppDropMonitor {
         });
         appDropNotifierThread.start();
 
-        fileMonitorService = new FileMonitorService(rootPath, pathname -> pathname.getName().endsWith(".jar"));
-        fileMonitorService.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor() {
+        fileMonitor = new FileMonitor(rootPath, pathname -> pathname.getName().endsWith(".jar"));
+        fileMonitor.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor() {
             @Override
             public void onFileCreate(File file) {
                 addToQueueForDeployment(getAppName(file), file);
@@ -86,7 +90,7 @@ public final class AppDropMonitor {
             }
         });
         try {
-            fileMonitorService.start();
+            fileMonitor.start();
         } catch (Exception e) {
             log.error("failed to start app root path monitor", e);
         }
@@ -124,12 +128,11 @@ public final class AppDropMonitor {
     }
 
     public void stopBackgroundProcess() {
-        started = false;
         if (appDropNotifierThread != null) {
             appDropNotifierThread.interrupt();
         }
-        if (fileMonitorService != null) {
-            fileMonitorService.stop();
+        if (fileMonitor != null) {
+            fileMonitor.stop();
         }
     }
 
@@ -153,7 +156,7 @@ public final class AppDropMonitor {
         }
     }
 
-    public void setOnAppDropped(BiConsumer<String, File> appConsumer) {
+    public void setOnAppDroppedListener(BiConsumer<String, File> appConsumer) {
         this.appConsumer = appConsumer;
     }
 

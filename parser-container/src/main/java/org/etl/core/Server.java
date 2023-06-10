@@ -7,11 +7,8 @@ import org.etl.service.Context;
  * a server represents a container, and it contains a lot of applications( extends Application)
  * all these applications share the same context which offers specific services.
  */
-public interface Server {
+public interface Server extends LifeCycle {
 
-    void start();
-
-    void stop();
 
     public void setAppMountPath(String appMountPath);
 

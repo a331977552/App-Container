@@ -1,6 +1,7 @@
 package org.etl.core;
 
 import lombok.extern.slf4j.Slf4j;
+import org.etl.core.exception.LifecycleException;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -57,31 +58,25 @@ public class BootStrap {
 //        MySecurityManager.forbidSystemExitCall();
         BootStrap bootStrap = new BootStrap();
         try {
-            bootStrap.init();
             bootStrap.start();
         } catch (Exception e) {
             log.error("unexpected error encountered, system exiting", e);
-            bootStrap.stop();
         }
     }
 
-    private void stop() {
-        if (server!=null){
-            server.stop();
-        }
-    }
 
-    private void start() {
+    private void start() throws LifecycleException {
+        server = new StandardServer();
+        server.setAppMountPath(APP_HOME);
+        server.init();
         server.start();
+        //TODO
+//        server.stop();
+
+//        server.destroy();
         log.info("server started");
     }
 
-    private void init() {
-        ConfigurableApplicationContext run = new SpringApplicationBuilder(BootStrap.class)
-                .web(WebApplicationType.NONE)
-                .run();
-        server = run.getBean(Server.class);
-        server.setAppMountPath(APP_HOME);
-    }
+
 
 }

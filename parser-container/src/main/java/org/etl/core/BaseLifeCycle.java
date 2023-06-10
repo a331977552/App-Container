@@ -5,13 +5,20 @@ import org.etl.core.exception.LifecycleException;
 
 @Slf4j
 public abstract class BaseLifeCycle implements LifeCycle {
+
+
     private LifeCycleState state = LifeCycleState.NEW;
 
     @Override
     public final void init() throws LifecycleException {
+        if (state == LifeCycleState.INITIALIZING || state == LifeCycleState.INITIALIZED) {
+            log.error("{} component has been INITIALIZED already", this, new LifecycleException());
+            return;
+        }
         if (state != LifeCycleState.NEW) {
             this.invalidTransition(LifeCycleState.INITIALIZING);
         }
+
         try {
             setInternalState(LifeCycleState.INITIALIZING);
             internalInit();
@@ -114,9 +121,15 @@ public abstract class BaseLifeCycle implements LifeCycle {
         } catch (Throwable throwable) {
             handException(throwable, "failed to destroy component {}", this);
         }
-
     }
-
+    @Override
+    public LifeCycleState getState() {
+        return state;
+    }
     protected abstract void internalDestroy() throws LifecycleException;
 
+    @Override
+    public boolean isAvailable() {
+        return this.state.isAvailable();
+    }
 }
