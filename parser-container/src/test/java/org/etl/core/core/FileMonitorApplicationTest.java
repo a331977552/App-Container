@@ -17,12 +17,7 @@ class FileMonitorApplicationTest {
         URL resource = FileMonitorApplicationTest.class.getClassLoader().getResource("testFolder");
         assert resource != null;
         File dir = new File(resource.getFile());
-        FileMonitor fileMonitor = new FileMonitor(dir, new FileFilter() {
-            @Override
-            public boolean accept(File pathname) {
-                return true;
-            }
-        });
+        FileMonitor fileMonitor = new FileMonitor(dir, pathname -> true,3000);
 
         fileMonitor.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor(){
             @Override

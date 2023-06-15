@@ -38,10 +38,17 @@ final class AppDropMonitor {
 
     public void startBackgroundProcess() {
         File rootPath = new File(getAppMountPath());
-        List<File> existingApp = findExistingApp(rootPath);
-        for (File file : existingApp) {
-            addToQueueForDeployment(getAppName(file), file);
-        }
+        new Thread(() -> {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            List<File> existingApp = findExistingApp(rootPath);
+            for (File file : existingApp) {
+                addToQueueForDeployment(getAppName(file), file);
+            }
+        }).start();
         appDropNotifierThread = new Thread(() -> {
             while (server.isAvailable()) {
                 //check all
@@ -72,7 +79,7 @@ final class AppDropMonitor {
         });
         appDropNotifierThread.start();
 
-        fileMonitor = new FileMonitor(rootPath, pathname -> pathname.getName().endsWith(".jar"));
+        fileMonitor = new FileMonitor(rootPath, pathname -> pathname.getName().endsWith(".jar"),2000);
         fileMonitor.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor() {
             @Override
             public void onFileCreate(File file) {

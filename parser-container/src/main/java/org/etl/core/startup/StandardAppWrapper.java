@@ -20,7 +20,6 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.SynchronousQueue;
 
 @Slf4j
 public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
@@ -30,11 +29,6 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
 
     private FileMonitor fileMonitor;
 
-    /**
-     * it might store a jar file or a folder
-     */
-    SynchronousQueue<File> appFile = new SynchronousQueue<>(true);
-
     private Class<? extends Application> appClass;
     private boolean reloadable = false;
     private final String absAppPath;
@@ -42,6 +36,7 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
     private String appMountPath;
     private Application application;
     private Context context;
+    private AppReloadMonitor appReloadMonitor;
 
     public StandardAppWrapper(String absAppPath) {
         this.absAppPath = absAppPath;
@@ -101,6 +96,7 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
 
     @Override
     public void reload() {
+        log.info("reloading app {}", getName());
         try {
             stop();
         } catch (LifecycleException e) {
@@ -116,8 +112,8 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
         } catch (LifecycleException e) {
             log.error("unable to start component", e);
         }
+        log.info("app {} reloaded successfully", getName());
     }
-
 
 
     private void backgroundProcess() {
@@ -135,47 +131,48 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
         // 2.find service folder
         // 3.stop existing service
         // 4.start new service
-        //todo check all subdirectories for this app
-        if (fileMonitor == null) {
-            fileMonitor = new FileMonitor(new File(getAbsAppPath()), pathname -> true);
-            fileMonitor.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor() {
-                @Override
-                public void onFileChange(File file) {
-                    log.info("file {} modified, restarting app {}", file.getAbsolutePath(), getName());
-                    Thread currentThread = Thread.currentThread();
-                    ClassLoader originalTccl = currentThread.getContextClassLoader();
-                    try {
-                        currentThread.setContextClassLoader(AppLoader.class.getClassLoader());
-                        reload();
-                    } finally {
-                        currentThread.setContextClassLoader(originalTccl);
-                    }
-                }
-            });
-        }
+
         try {
             fileMonitor.start();
+            appReloadMonitor.start();
         } catch (Exception e) {
             log.error("unable to monitor app" + this.getName(), e);
         }
     }
+
     @Override
     protected void internalInit() throws LifecycleException {
-        if (getLoader() == null || getAppMountPath() == null){
-            throw new LifecycleException("unable to initializing app wrapper "+ this);
+        appReloadMonitor = new AppReloadMonitor(this,5000);
+        appReloadMonitor.init();
+        if (getLoader() == null || getAppMountPath() == null) {
+            throw new LifecycleException("unable to initializing app wrapper " + this);
+        }
+        if (fileMonitor == null) {
+            fileMonitor = new FileMonitor(new File(getAbsAppPath()), pathname -> true,500);
+            fileMonitor.setFileAlterationListenerAdaptor(new FileAlterationListenerAdaptor() {
+                @Override
+                public void onFileChange(File file) {
+                    if (!isAvailable())
+                        return;
+                    log.info("file {} modified for app {}", file.getAbsolutePath(), getName());
+                    appReloadMonitor.put(file);
+                }
+            });
         }
     }
 
     @Override
-    public void internalStart() {
+    public void internalStart() throws LifecycleException {
         loadApp();
         backgroundProcess();
     }
+
     @Override
     protected void internalStop() throws LifecycleException {
         if (fileMonitor != null) {
             fileMonitor.stop();
         }
+        appReloadMonitor.stop();
         if (getApplicationInstance() != null) {
             log.info("try to stop app: {}", appClass.getName());
             getApplicationInstance().stop(false);
@@ -188,12 +185,13 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
 
     @Override
     protected void internalDestroy() throws LifecycleException {
-        fileMonitor.stop();
-        fileMonitor.setFileAlterationListenerAdaptor(null);
+        if (fileMonitor != null) {
+            fileMonitor.setFileAlterationListenerAdaptor(null);
+        }
+        appReloadMonitor.destroy();
         fileMonitor = null;
         appClass = null;
     }
-
 
     @Override
     public void setLoader(Loader loader) {
@@ -206,11 +204,12 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
     }
 
 
-
     private void loadApp() {
         Thread thread = new Thread(() -> {
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
             try {
                 ClassLoader parserServiceClassLoader = getLoader().getClassLoader();
+                Thread.currentThread().setContextClassLoader(parserServiceClassLoader);
                 //todo make the config.property location configurable
                 URL resource = getLoader().getClassLoader().getResource("app/config.properties");
                 String mainClass;
@@ -228,9 +227,14 @@ public class StandardAppWrapper extends BaseLifeCycle implements AppWrapper {
                 Application application = appClass.getConstructor().newInstance();
                 setApplication(application);
                 application.start(new ContextFacade(context));
+                log.info("app {} started", mainClass);
+
             } catch (ClassNotFoundException | InstantiationException | NoSuchMethodException | IllegalAccessException |
                      InvocationTargetException e) {
                 log.error("app " + getName() + " has run into exception, please deploy an valid app !!", e);
+            }finally {
+                Thread.currentThread().setContextClassLoader(contextClassLoader);
+
             }
         });
         thread.start();

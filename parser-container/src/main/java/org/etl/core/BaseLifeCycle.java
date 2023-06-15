@@ -38,7 +38,6 @@ public abstract class BaseLifeCycle implements LifeCycle {
 
     @Override
     public final void start() throws LifecycleException {
-
         if (state == LifeCycleState.STARTING || state == LifeCycleState.STARTED) {
             log.error("{} component has been started already", this, new LifecycleException());
             return;
