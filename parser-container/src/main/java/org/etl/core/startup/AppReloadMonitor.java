@@ -9,7 +9,7 @@ import java.io.File;
 import java.util.concurrent.*;
 
 /***
- * the app reload monitor will be stopped every time a reload action is fired to stop multip reload at same time.
+ * the app reload monitor will be stopped every time a reload action is fired to stop multiple reload at same time.
  */
 @Slf4j
 public final class AppReloadMonitor extends BaseLifeCycle implements Runnable {
